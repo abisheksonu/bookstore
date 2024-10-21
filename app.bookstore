@@ -1,0 +1,99 @@
+app.
+from flask import Flask, render_template, request, redirect, url_for
+import pymongo
+from bson.objectid import ObjectId
+
+app = Flask(__name__)
+
+def connect():
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["bookstore"]
+    return db
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    db = connect()
+    if request.method == 'POST':
+        search_query = request.form['search']
+        books = db["books"].find({"title": {"$regex": search_query, "$options": "i"}})
+    else:
+        books = db["books"].find()
+    return render_template('index.html', books=books)
+
+@app.route('/add', methods=['POST'])
+def add():
+    title = request.form['title']
+    author = request.form['author']
+    price = request.form['price']
+    db = connect()
+    db["books"].insert_one({"title": title, "author": author, "price": float(price)})
+    return redirect(url_for('index'))
+
+@app.route('/delete/<id>')
+def delete(id):
+    db = connect()
+    db["books"].delete_one({"_id": ObjectId(id)})
+    return redirect(url_for('index'))
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5001)  # Change 5001 to any unused port
+html code:(placed in templates)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookstore App</title>
+    <style>
+        body {
+            background-color: #f0f8ff;  /* Light blue background */
+            font-family: Arial, sans-serif;  /* Change font */
+        }
+        h1, h2 {
+            color: #333;  /* Dark gray for headings */
+        }
+        form {
+            margin-bottom: 20px;  /* Add some space below forms */
+        }
+        ul {
+            list-style-type: none;  /* Remove bullet points */
+        }
+        li {
+            margin: 5px 0;  /* Add some space between items */
+        }
+    </style>
+</head>
+<body>
+    <h1>Bookstore</h1>
+
+    <h2>Add a New Book</h2>
+    <form action="/add" method="POST">
+        <label for="title">Title:</label>
+        <input type="text" id="title" name="title" required>
+
+        <label for="author">Author:</label>
+        <input type="text" id="author" name="author" required>
+
+        <label for="price">Price:</label>
+        <input type="number" id="price" name="price" required>
+
+        <input type="submit" value="Add Book">
+    </form>
+
+    <h2>Search Books</h2>
+    <form action="/" method="POST">
+        <input type="text" name="search" placeholder="Search by title" required>
+        <input type="submit" value="Search">
+    </form>
+
+    <h2>Book List</h2>
+    <ul>
+        {% for book in books %}
+            <li>
+                {{ book['title'] }} by {{ book['author'] }} - ${{ book['price'] }}
+                <a href="/delete/{{ book['_id'] }}">Delete</a>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
